@@ -1,5 +1,5 @@
 const CHANNEL_ACCESS_TOKEN =
-  "replace your channel access token here";
+  "to replace this with your channel access token";
 const replyUrl = "https://api.line.me/v2/bot/message/reply";
 
 const numOfPeople = 13;
