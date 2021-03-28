@@ -4,10 +4,9 @@ const replyUrl = "https://api.line.me/v2/bot/message/reply";
 
 const numOfPeople = 13;
 const len = numOfPeople + 1;
+const cmds = { outResult: "bot o", outMissing: "bot m", reset: "bot r" };
+const keywordForCmd = ["指令", "命令", "cmd", "help"];
 const keywordUsrMsgStart = "級職姓名";
-const keywordForOutResult = "bot o";
-const keywordForOutState = "bot s";
-const keywordForReset = "bot r";
 const propKey = "data";
 
 function doPost(e) {
@@ -21,7 +20,7 @@ function doPost(e) {
     PropertiesService.getScriptProperties().setProperty(propKey, JSON.stringify(initArr));
   }
 
-  // extract data from the request
+  // extract usrMsg and token from the request
 
   const msg = JSON.parse(e.postData.contents);
   const replyToken = msg.events[0].replyToken;
@@ -33,13 +32,18 @@ function doPost(e) {
 
   let replyText = "";
   if (usrMsg.startsWith(keywordUsrMsgStart)) {
-    // update persistence
+    // update the persistence
 
     let data = JSON.parse(PropertiesService.getScriptProperties().getProperty(propKey));
-    let id = parseInt(usrMsg.match(/(\d+)/i)[0]);
-    data[id] = usrMsg;
+
+    const usrMsgArr = usrMsg.split("\n\n");
+    for (let m of usrMsgArr) {
+      let id = parseInt(m.match(/(\d+)/i)[0]);
+      data[id] = m;
+    }
+
     PropertiesService.getScriptProperties().setProperty(propKey, JSON.stringify(data));
-  } else if (usrMsg.startsWith(keywordForOutResult)) {
+  } else if (usrMsg.startsWith(cmds.outResult)) {
     // set replyText as result
 
     const data = JSON.parse(PropertiesService.getScriptProperties().getProperty(propKey));
@@ -52,8 +56,8 @@ function doPost(e) {
         replyText += data[i];
       }
     }
-  } else if (usrMsg.startsWith(keywordForOutState)) {
-    // set replyText as state
+  } else if (usrMsg.startsWith(cmds.outMissing)) {
+    // set replyText as missing list
 
     const data = JSON.parse(PropertiesService.getScriptProperties().getProperty(propKey));
     let missingId = [];
@@ -64,12 +68,25 @@ function doPost(e) {
     }
 
     replyText = missingId.length + " missing\n" + missingId.join(", ");
-  } else if (usrMsg.startsWith(keywordForReset)) {
+  } else if (usrMsg.startsWith(cmds.reset)) {
     // reset the persistence
 
     PropertiesService.getScriptProperties().deleteProperty(propKey);
 
     replyText = "Reset complete.";
+  } else {
+    for (let keyword of keywordForCmd) {
+      if (usrMsg.startsWith(keyword)) {
+        // set replyText as commands
+
+        replyText = "指令:";
+        for (let key in cmds) {
+          let value = cmds[key];
+          replyText += "\n" + value + ": " + key;
+        }
+        break;
+      }
+    }
   }
 
   // reply
