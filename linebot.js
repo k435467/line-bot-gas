@@ -110,7 +110,7 @@ function doPost(e) {
           }
         }
       } else {
-        missingId = Array.from(Array(13).keys()).map((v) => v + 1);
+        missingId = Array.from(Array(13).keys(), (v) => v + 1);
       }
 
       let replyText = missingId.length + " missing";
