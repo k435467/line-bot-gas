@@ -4,7 +4,10 @@ const replyUrl = "https://api.line.me/v2/bot/message/reply";
 const manualMsg = `指令:
 
 bot o
-- (output) 顯示統整結果
+- (output) 顯示回報統整結果
+
+bot b
+- (back) 顯示返營統整結果
 
 bot m
 - (missing) 顯示缺少人數與學號
@@ -13,8 +16,12 @@ bot c
 - (clear) 清除紀錄的回報訊息
 
 bot s <學號> <姓名> <電話>
-- (set) e.g.
+- (set) 設定姓名電話，設定後可使用下面兩個指令 e.g.
 bot s 1 xxx 09xxxxxxxxx
+
+bot s <學號> <返營方式>
+- (set) 設定返營方式為 北車/板橋/新竹/自行 e.g.
+bot s 1 北車
 
 bot i <學號> <體溫> [其他]
 - (input) [其他]為選填，如果沒有填寫則預設為目前人在家 e.g.
@@ -26,15 +33,22 @@ const len = numOfPeople + 1;
 const keywordUsrMsgStart = "級職姓名";
 const cmds = {
   outResult: "bot o",
+  outBackMethod: "bot b",
   outMissing: "bot m",
   clear: "bot c",
-  setNamePhone: "bot s ",
+  set: "bot s ",
   shortInput: "bot i ",
 };
 
-const colForName = 1;
-const colForPhoneNumber = 2;
-const colForReportMsg = 3;
+const rangeColForName = 1;
+const rangeColForPhoneNumber = 2;
+const rangeColForReportMsg = 3;
+const rangeColForBackMethod = 4;
+
+const arrColForName = rangeColForName - 1;
+const arrColForPhoneNumber = rangeColForPhoneNumber - 1;
+const arrColForReportMsg = rangeColForReportMsg - 1;
+const arrColForBackMethod = rangeColForBackMethod - 1;
 
 function reply(token, text) {
   UrlFetchApp.fetch(replyUrl, {
@@ -82,9 +96,33 @@ function doPost(e) {
 
       let replyText = "";
       let data = sheet.getDataRange().getValues();
-      if (data[0].length > colForReportMsg - 1) {
-        for (let i = 0; i < len - 1; ++i) {
-          let str = data[i][colForReportMsg - 1];
+      if (data[0].length > arrColForReportMsg) {
+        for (let i = 0; i < numOfPeople; ++i) {
+          let str = data[i][arrColForReportMsg];
+          if (str !== "") {
+            if (replyText !== "") {
+              replyText += "\n\n";
+            }
+            replyText += str;
+          }
+        }
+        if (replyText === "") {
+          replyText = "There are no reports.";
+        }
+        reply(replyToken, replyText);
+      }
+      return;
+    }
+    case cmds.outBackMethod: {
+      // --------------------
+      // Reply back method
+      // --------------------
+
+      let replyText = "";
+      let data = sheet.getDataRange().getValues();
+      if (data[0].length > arrColForBackMethod) {
+        for (let i = 0; i < numOfPeople; ++i) {
+          let str = data[i][arrColForBackMethod];
           if (str !== "") {
             if (replyText !== "") {
               replyText += "\n\n";
@@ -103,9 +141,9 @@ function doPost(e) {
 
       let data = sheet.getDataRange().getValues();
       let missingId = [];
-      if (data[0].length > colForReportMsg - 1) {
-        for (let i = 0; i < len - 1; ++i) {
-          if (data[i][colForReportMsg - 1] === "") {
+      if (data[0].length > arrColForReportMsg) {
+        for (let i = 0; i < numOfPeople; ++i) {
+          if (data[i][arrColForReportMsg] === "") {
             missingId.push(i + 1);
           }
         }
@@ -126,7 +164,7 @@ function doPost(e) {
       // Clear all report messages
       // ----------------------------
 
-      sheet.getRange(1, colForReportMsg, numOfPeople).clear();
+      sheet.getRange(1, rangeColForReportMsg, numOfPeople).clear();
       reply(replyToken, "Clear complete.");
       return;
     }
@@ -139,22 +177,44 @@ function doPost(e) {
     }
   }
 
-  if (usrMsg.startsWith(cmds.setNamePhone)) {
-    // ---------------------------------------------------------------
-    // Set name and phone number - bot s <id> <name> <phone number>
-    // ---------------------------------------------------------------
+  if (usrMsg.startsWith(cmds.set)) {
+    // ----------------------------------------------
+    // Set name and phone number / Set back method
+    // ----------------------------------------------
 
     let msgArr = usrMsg.split(" ");
     if (msgArr.length === 5) {
+      // bot s <id> <name> <phone number>
+
       let id = parseInt(msgArr[2]);
       let name = msgArr[3];
       let phoneNumber = msgArr[4];
       if (!isNaN(id)) {
-        sheet.getRange(id, colForName).setValue(name);
-        sheet.getRange(id, colForPhoneNumber).setValue(phoneNumber);
+        sheet.getRange(id, rangeColForName).setValue(name);
+        sheet.getRange(id, rangeColForPhoneNumber).setValue(phoneNumber);
         SpreadsheetApp.flush();
         reply(replyToken, "Set complete.");
         return;
+      }
+    } else if (msgArr.length === 4) {
+      // bot s <id> <back method>
+
+      let id = parseInt(msgArr[2]);
+      let method = msgArr[3];
+      if (!isNaN(id)) {
+        let name = sheet.getRange(id, rangeColForName).getValue();
+        let phoneNumber = sheet.getRange(id, rangeColForPhoneNumber).getValue();
+        let str = `二兵 ${("000" + id).slice(-3)} ${name}
+電話：0${phoneNumber}
+無發燒感冒症狀，無接觸返國人員、無軍紀案件、無味覺、嗅覺遺失及不明原因腹瀉，`;
+        if (method === "自行") {
+          str += "自行返營";
+        } else {
+          str += "17:30在" + method + "搭專車返營";
+        }
+        sheet.getRange(id, rangeColForBackMethod).setValue(str);
+        SpreadsheetApp.flush();
+        reply(replyToken, str);
       }
     }
     reply(replyToken, "Wrong format!");
@@ -167,8 +227,8 @@ function doPost(e) {
     let arr = usrMsg.match(/^bot i (\d+) (\d+(\.\d+)?)/);
     let id = parseInt(arr[1]);
     if (!isNaN(id)) {
-      let name = sheet.getRange(id, colForName).getValue();
-      let phoneNumber = sheet.getRange(id, colForPhoneNumber).getValue();
+      let name = sheet.getRange(id, rangeColForName).getValue();
+      let phoneNumber = sheet.getRange(id, rangeColForPhoneNumber).getValue();
 
       let temp = arr[2];
       let misc = "";
@@ -177,11 +237,11 @@ function doPost(e) {
       } else {
         misc = "目前人在家";
       }
-      let reportMsg = `級職姓名：新兵${("000" + id).slice(-3)}${name}
+      let reportMsg = `級職姓名：新兵 ${("000" + id).slice(-3)} ${name}
 電話：0${phoneNumber}
 ${misc}
 體溫：${temp}`;
-      sheet.getRange(id, colForReportMsg).setValue(reportMsg);
+      sheet.getRange(id, rangeColForReportMsg).setValue(reportMsg);
       SpreadsheetApp.flush();
       reply(replyToken, reportMsg);
       return;
@@ -196,7 +256,7 @@ ${misc}
     const usrMsgArr = usrMsg.split("\n\n");
     for (let msg of usrMsgArr) {
       let id = parseInt(msg.match(/(\d+)/i)[0]);
-      sheet.getRange(id, colForReportMsg).setValue(msg);
+      sheet.getRange(id, rangeColForReportMsg).setValue(msg);
     }
     SpreadsheetApp.flush();
     return;
