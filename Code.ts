@@ -50,7 +50,7 @@ const arrColForPhoneNumber = rangeColForPhoneNumber - 1;
 const arrColForReportMsg = rangeColForReportMsg - 1;
 const arrColForBackMethod = rangeColForBackMethod - 1;
 
-function reply(token, text) {
+function reply(token: string, text: string) {
   UrlFetchApp.fetch(replyUrl, {
     headers: {
       "Content-Type": "application/json; charset=UTF-8",
@@ -69,14 +69,14 @@ function reply(token, text) {
   });
 }
 
-function doPost(e) {
+function doPost(e: any) {
   // ---------------------------
   // Extract usrMsg and token
   // ---------------------------
 
   const requestContents = JSON.parse(e.postData.contents);
-  const replyToken = requestContents.events[0].replyToken;
-  const usrMsg = requestContents.events[0].message.text;
+  const replyToken: string = requestContents.events[0].replyToken;
+  const usrMsg: string = requestContents.events[0].message.text;
 
   if (typeof replyToken === "undefined") {
     return;
@@ -140,7 +140,7 @@ function doPost(e) {
       // ---------------------
 
       let data = sheet.getDataRange().getValues();
-      let missingId = [];
+      let missingId: number[] = [];
       if (data[0].length > arrColForReportMsg) {
         for (let i = 0; i < numOfPeople; ++i) {
           if (data[i][arrColForReportMsg] === "") {
@@ -148,7 +148,7 @@ function doPost(e) {
           }
         }
       } else {
-        missingId = Array.from(Array(13).keys(), (v) => v + 1);
+        missingId = Array.from(Array(numOfPeople).keys(), (v) => v + 1);
       }
 
       let replyText = missingId.length + " missing";
