@@ -1,3 +1,4 @@
+const spreadSheetID = "to replace this with your spread sheet id";
 const CHANNEL_ACCESS_TOKEN = "to replace this with your channel access token";
 const replyUrl = "https://api.line.me/v2/bot/message/reply";
 
@@ -13,7 +14,7 @@ bot m
 - (missing) 顯示缺少人數與學號
 
 bot c
-- (clear) 清除紀錄的回報訊息
+- (clear) 清除紀錄的回報訊息，機器人在新的一天(UTC)收到任意訊息時會自動清除
 
 bot s <學號> <姓名> <電話>
 - (set) 設定姓名電話，設定後可使用下面兩個指令 e.g.
@@ -50,7 +51,18 @@ const arrColForPhoneNumber = rangeColForPhoneNumber - 1;
 const arrColForReportMsg = rangeColForReportMsg - 1;
 const arrColForBackMethod = rangeColForBackMethod - 1;
 
-function reply(token: string, text: string) {
+function datesAreOnSameDay(
+  a: Date | GoogleAppsScript.Base.Date,
+  b: Date | GoogleAppsScript.Base.Date
+): boolean {
+  return (
+    a.getUTCFullYear() === b.getUTCFullYear() &&
+    a.getUTCMonth() === b.getUTCMonth() &&
+    a.getUTCDate() === b.getUTCDate()
+  );
+}
+
+function reply(token: string, text: string): void {
   UrlFetchApp.fetch(replyUrl, {
     headers: {
       "Content-Type": "application/json; charset=UTF-8",
@@ -69,7 +81,7 @@ function reply(token: string, text: string) {
   });
 }
 
-function doPost(e: any) {
+function doPost(e: any): void {
   // ---------------------------
   // Extract usrMsg and token
   // ---------------------------
@@ -82,11 +94,21 @@ function doPost(e: any) {
     return;
   }
 
+  let sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+
+  // ---------------------------
+  // Clear reports if expired
+  // ---------------------------
+
+  const curDate = new Date();
+  const lastModifyDate = DriveApp.getFileById(spreadSheetID).getLastUpdated();
+  if (!datesAreOnSameDay(curDate, lastModifyDate)) {
+    sheet.getRange(1, rangeColForReportMsg, numOfPeople).clear();
+  }
+
   // --------------
   // Process cmd
   // --------------
-
-  let sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
 
   switch (usrMsg) {
     case cmds.outResult: {
