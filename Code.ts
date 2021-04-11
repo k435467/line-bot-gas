@@ -62,7 +62,19 @@ function datesAreOnSameDay(
   );
 }
 
-function reply(token: string, text: string): void {
+function reply(token: string, text: string, text2?: string): void {
+  let messagesValue = [
+    {
+      type: "text",
+      text: text,
+    },
+  ];
+  if (text2 !== undefined) {
+    messagesValue.push({
+      type: "text",
+      text: text2,
+    });
+  }
   UrlFetchApp.fetch(replyUrl, {
     headers: {
       "Content-Type": "application/json; charset=UTF-8",
@@ -71,14 +83,43 @@ function reply(token: string, text: string): void {
     method: "post",
     payload: JSON.stringify({
       replyToken: token,
-      messages: [
-        {
-          type: "text",
-          text: text,
-        },
-      ],
+      messages: messagesValue,
     }),
   });
+  return;
+}
+
+function getMissingList(data: any[][]): number[] {
+  let missingId: number[] = [];
+  if (data[0].length > arrColForReportMsg) {
+    for (let i = 0; i < numOfPeople; ++i) {
+      if (data[i][arrColForReportMsg] === "") {
+        missingId.push(i + 1);
+      }
+    }
+  } else {
+    missingId = Array.from(Array(numOfPeople).keys(), (v) => v + 1);
+  }
+  return missingId;
+}
+
+function getResultText(data: any[][]): string {
+  let replyText = "";
+  if (data[0].length > arrColForReportMsg) {
+    for (let i = 0; i < numOfPeople; ++i) {
+      let str = data[i][arrColForReportMsg];
+      if (str !== "") {
+        if (replyText !== "") {
+          replyText += "\n\n";
+        }
+        replyText += str;
+      }
+    }
+    if (replyText === "") {
+      replyText = "There are no reports.";
+    }
+  }
+  return replyText;
 }
 
 function doPost(e: any): void {
@@ -116,23 +157,7 @@ function doPost(e: any): void {
       // Reply result
       // ---------------
 
-      let replyText = "";
-      let data = sheet.getDataRange().getValues();
-      if (data[0].length > arrColForReportMsg) {
-        for (let i = 0; i < numOfPeople; ++i) {
-          let str = data[i][arrColForReportMsg];
-          if (str !== "") {
-            if (replyText !== "") {
-              replyText += "\n\n";
-            }
-            replyText += str;
-          }
-        }
-        if (replyText === "") {
-          replyText = "There are no reports.";
-        }
-        reply(replyToken, replyText);
-      }
+      reply(replyToken, getResultText(sheet.getDataRange().getValues()));
       return;
     }
     case cmds.outBackMethod: {
@@ -161,17 +186,7 @@ function doPost(e: any): void {
       // Reply missing list
       // ---------------------
 
-      let data = sheet.getDataRange().getValues();
-      let missingId: number[] = [];
-      if (data[0].length > arrColForReportMsg) {
-        for (let i = 0; i < numOfPeople; ++i) {
-          if (data[i][arrColForReportMsg] === "") {
-            missingId.push(i + 1);
-          }
-        }
-      } else {
-        missingId = Array.from(Array(numOfPeople).keys(), (v) => v + 1);
-      }
+      let missingId = getMissingList(sheet.getDataRange().getValues());
 
       let replyText = missingId.length + " missing";
       if (missingId.length > 0) {
@@ -237,6 +252,7 @@ function doPost(e: any): void {
         sheet.getRange(id, rangeColForBackMethod).setValue(str);
         SpreadsheetApp.flush();
         reply(replyToken, str);
+        return;
       }
     }
     reply(replyToken, "Wrong format!");
@@ -263,9 +279,21 @@ function doPost(e: any): void {
 電話：0${phoneNumber}
 ${misc}
 體溫：${temp}`;
+
+      // Whether to reply summary
+      let replySummary = false;
+      let missingId = getMissingList(sheet.getDataRange().getValues());
+      if (missingId.length === 1 && missingId.includes(id)) {
+        replySummary = true;
+      }
+
       sheet.getRange(id, rangeColForReportMsg).setValue(reportMsg);
       SpreadsheetApp.flush();
-      reply(replyToken, reportMsg);
+      if (replySummary) {
+        reply(replyToken, reportMsg, getResultText(sheet.getDataRange().getValues()));
+      } else {
+        reply(replyToken, reportMsg);
+      }
       return;
     }
     reply(replyToken, "Wrong format!");
@@ -275,12 +303,17 @@ ${misc}
     // Update the sheet when the report msg is received
     // ---------------------------------------------------
 
+    let preNumMissing = getMissingList(sheet.getDataRange().getValues()).length;
     const usrMsgArr = usrMsg.split("\n\n");
     for (let msg of usrMsgArr) {
       let id = parseInt(msg.match(/(\d+)/i)[0]);
       sheet.getRange(id, rangeColForReportMsg).setValue(msg);
     }
     SpreadsheetApp.flush();
+    let curNumMissing = getMissingList(sheet.getDataRange().getValues()).length;
+    if (curNumMissing === 0 && curNumMissing < preNumMissing) {
+      reply(replyToken, getResultText(sheet.getDataRange().getValues()));
+    }
     return;
   }
 }
